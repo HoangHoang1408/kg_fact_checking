@@ -8,6 +8,9 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 openai = "^1.54.4"
+python-dotenv = "^1.0.1"
+tenacity = "^9.0.0"
+datasets = "^3.1.0"
 
 
 [build-system]
