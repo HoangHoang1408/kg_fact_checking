@@ -1,22 +1,10 @@
 from tqdm.auto import tqdm
 import json
 import pickle
-from datasets import load_from_disk
+from datasets import load_from_disk, Dataset
 
 
-class LoadData:
-    """
-    A utility class for loading data from different file formats.
-
-    Methods:
-
-        load_data:
-            Args:
-                file_path (str): The path to the file to load.
-            Returns:
-                data (list or dict or Dataset or None): The loaded data.
-    """
-
+class DataUtil:
     @staticmethod
     def load_data(file_path: str) -> list | dict | None:
         """
@@ -46,3 +34,26 @@ class LoadData:
         if data is None:
             raise ValueError(f"File {file_path} is not a valid format.")
         return data
+
+    @staticmethod
+    def save_json_from_list(data, file_path):
+        """
+        Save a list of dictionaries to a JSON file.
+
+        Args:
+            data (list): A list of dictionaries to be saved.
+            file_path (str): The path to the JSON file to be created.
+        """
+        with open(file_path, "w") as f:
+            json.dump(data, f, ensure_ascii=False)
+
+    @staticmethod
+    def save_jsonl_from_list(data, file_path):
+        """
+        Save a list of dictionaries to a JSONL file.
+
+        Args:
+            data (list): A list of dictionaries to be saved.
+            file_path (str): The path to the JSONL file to be created.
+        """
+        Dataset.from_list(data).to_json(file_path, force_ascii=False)
