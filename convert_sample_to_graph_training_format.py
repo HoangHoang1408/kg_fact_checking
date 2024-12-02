@@ -2,8 +2,8 @@ import random
 import argparse
 import json
 
-from utils import DataUtil, JSONParser
-from openai_utils import extract_openai_result
+from src.utils import DataUtil, JSONParser
+from src.openai_utils import extract_openai_result
 import os
 
 
@@ -76,7 +76,7 @@ def convert_to_triplet_format(sample, unknown_prefix="unknown_entity"):
 
     # check unknown entities
     unknown_entity_mapping = {}
-    for i, e in enumerate(sample["present"]["out_entities"]):
+    for i, e in enumerate(sample["out_entities"]):
         unknown_entity_mapping[e] = f"{unknown_prefix}_{unknown_id + i}"
     unknown_id += len(unknown_entity_mapping)
 
@@ -195,7 +195,14 @@ def convert_sample_to_graph_format(sample):
 
     text = ""
     for triplet in triplets:
-        text += f"{triplet[0]} || {triplet[1]} || {triplet[2]}\n"
+        head, relation, tail = triplet
+        if "unknown_entity" not in head:
+            head = f"<ent>{head}</ent>"
+        if "unknown_entity" not in tail:
+            tail = f"<ent>{tail}</ent>"
+
+        text += f"{head}||{relation}||{tail}\n"
+
     return text.strip()
 
 

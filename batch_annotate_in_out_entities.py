@@ -1,5 +1,5 @@
-from utils import DataUtil
-from openai_utils import BatchUtils
+from src.utils import DataUtil
+from src.openai_utils import BatchUtils
 import argparse
 import os
 
@@ -7,8 +7,8 @@ PROMPT = """
 Specify if the following entities are mentioned in the claim or not.
 Respond correctly in the following JSON format and do not output anything else:
 {
-    "in_entities": [entity1, entity2],
-    "out_entities": [entity1, entity2]
+    "in_entities": [list of entities that are in the claim],
+    "out_entities": [list of entities that are not in the claim]
 }
 Do not change the entity names from the list of provided entities.
 ### Claim: {{claim}}

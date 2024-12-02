@@ -1,4 +1,4 @@
-from openai_utils import get_completion
+from src.openai_utils import get_completion
 import json
 
 FIX_JSON_PROMPT = """

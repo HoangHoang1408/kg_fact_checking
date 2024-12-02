@@ -1,4 +1,4 @@
-from utils.load_data import DataUtil
+from src.utils.load_data import DataUtil
 import argparse
 import os
 from uuid import uuid4
