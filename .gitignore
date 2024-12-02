@@ -164,3 +164,4 @@ cython_debug/
 data/*
 .DS_Store
 openai_batch_jobs
+openai_batch/*
