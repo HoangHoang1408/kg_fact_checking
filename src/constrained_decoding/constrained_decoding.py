@@ -20,17 +20,21 @@ class Trie:
         # Build trie from token sequences
         for token_ids in nested_token_ids:
             level = self.trie
-            for token_id in token_ids:
+            for i, token_id in enumerate(token_ids):
                 if token_id not in level:
-                    level[token_id] = {}
-                level = level[token_id]
+                    level[token_id] = {"children": {}, "is_end": False}
+                if i == len(token_ids) - 1:  # Mark end of sequence
+                    level[token_id]["is_end"] = True
+                level = level[token_id]["children"]
 
         # Validate no subset constraint
-        if no_subsets and self._has_subsets():
-            raise ValueError(
-                "Each sequence in nested_token_ids can't be a subset of another sequence, "
-                f"but found such case in: {nested_token_ids}"
-            )
+        if no_subsets:
+            for token_ids in nested_token_ids:
+                if self._is_subset(token_ids):
+                    raise ValueError(
+                        "Each sequence in nested_token_ids can't be a subset of another sequence, "
+                        f"but found such case in: {nested_token_ids}"
+                    )
 
     def next_tokens(self, current_seq: List[int]) -> List[int]:
         """Get possible next tokens given the current sequence."""
@@ -39,37 +43,36 @@ class Trie:
         for token in current_seq:
             if token not in node:
                 return []
-            node = node[token]
+            node = node[token]["children"]
         # Return possible next tokens
         return list(node.keys())
 
     def reached_leaf(self, current_seq: List[int]) -> bool:
         """Check if current sequence reaches a leaf node."""
         node = self.trie
-        for token in current_seq:
+        for i, token in enumerate(current_seq):
             if token not in node:
                 raise ValueError(f"Sequence {current_seq} not in trie")
-            node = node[token]
+            if i == len(current_seq) - 1 and node[token]["is_end"]:
+                return True
+            node = node[token]["children"]
+        return False
 
-        return len(self.next_tokens(current_seq)) == 0
-
-    def _count_leaves(self, node: Dict) -> int:
-        """Count leaf nodes in the trie."""
-        if not node:  # Leaf node
-            return 1
-        return sum(self._count_leaves(child) for child in node.values())
-
-    def _has_subsets(self) -> bool:
-        """Check if any sequence is a subset of another."""
-        total_sequences = self._count_leaves(self.trie)
-        return total_sequences != self._count_unique_paths(self.trie)
+    def _is_subset(self, candidate_seq: List[int]) -> bool:
+        """Check if the given sequence is a subset of any sequence in the trie."""
+        node = self.trie
+        for token in candidate_seq:
+            if token not in node:
+                return False
+            node = node[token]["children"]
+        return any(child.get("is_end", False) for child in node.values())
 
     def _count_unique_paths(self, node: Dict, path: tuple = ()) -> int:
         """Count unique paths in the trie."""
-        if not node:  # Leaf node
-            return 1
-        count = 0
-        for token, child in node.items():
+        if not node:  # Empty node
+            return 0
+        count = 1 if node.get("is_end", False) else 0
+        for token, child in node.get("children", {}).items():
             count += self._count_unique_paths(child, path + (token,))
         return count
 

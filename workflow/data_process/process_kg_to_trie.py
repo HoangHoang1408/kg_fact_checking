@@ -9,12 +9,6 @@ from tqdm.auto import tqdm
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 
-def load_kg(kg_path: str) -> Dict:
-    """Load knowledge graph from pickle file."""
-    with open(kg_path, "rb") as f:
-        return pickle.load(f)
-
-
 def extract_entities(kg: Dict) -> Set[str]:
     """Extract all unique entities from the knowledge graph."""
     entities = set()
@@ -23,8 +17,11 @@ def extract_entities(kg: Dict) -> Set[str]:
     entities.update(kg.keys())
 
     # Add tail entities
-    for relations in kg.values():
-        entities.update(relations.values())
+    for relations in tqdm(kg.values()):
+        temp_entities = []
+        for relation in relations.values():
+            temp_entities.extend(relation)
+        entities.update(temp_entities)
 
     return entities
 
@@ -35,6 +32,9 @@ def tokenize_entities(
     """Convert entities to token IDs using batch encoding for improved efficiency."""
     # Batch encode all entities at once
     token_sequences = tokenizer(list(entities), add_special_tokens=False).input_ids
+    token_sequences = [
+        token_sequence for token_sequence in token_sequences if token_sequence
+    ]
     return token_sequences
 
 
