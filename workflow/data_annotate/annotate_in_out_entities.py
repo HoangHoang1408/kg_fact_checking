@@ -1,4 +1,4 @@
-from src.utils import DataUtil
+from src.utils import DataUtils
 from src.openai_utils import BatchUtils
 import argparse
 import os
@@ -17,7 +17,7 @@ Do not change the entity names from the list of provided entities.
 
 
 if __name__ == "__main__":
-    data = DataUtil.load_data("./data/processed_factkg/factkg_train.json")
+    data = DataUtils.load_data("./data/processed_factkg/factkg_train.json")
     messages = []
     for sample in data:
         messages.append(

@@ -1,4 +1,4 @@
-from src.utils.load_data import DataUtil
+from src.utils.load_data import DataUtils
 import argparse
 import os
 from uuid import uuid4
@@ -13,7 +13,7 @@ def parse_args():
 
 
 def initial_process(data_path):
-    data = DataUtil.load_data(data_path)
+    data = DataUtils.load_data(data_path)
     data = [{"claim": k, "id": uuid4().hex, **v} for k, v in data.items()]
     return data
 
@@ -33,15 +33,15 @@ if __name__ == "__main__":
 
     os.makedirs(os.path.join(args.data_folder_path, "processed_factkg"), exist_ok=True)
 
-    DataUtil.save_json_from_list(
+    DataUtils.save_json_from_list(
         train_data,
         os.path.join(args.data_folder_path, "processed_factkg", "factkg_train.json"),
     )
-    DataUtil.save_json_from_list(
+    DataUtils.save_json_from_list(
         dev_data,
         os.path.join(args.data_folder_path, "processed_factkg", "factkg_dev.json"),
     )
-    DataUtil.save_json_from_list(
+    DataUtils.save_json_from_list(
         test_data,
         os.path.join(args.data_folder_path, "processed_factkg", "factkg_test.json"),
     )

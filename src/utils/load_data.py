@@ -4,7 +4,7 @@ import pickle
 from datasets import load_from_disk, Dataset
 
 
-class DataUtil:
+class DataUtils:
     @staticmethod
     def load_data(file_path: str) -> list | dict | None:
         """

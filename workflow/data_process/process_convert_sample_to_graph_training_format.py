@@ -2,7 +2,7 @@ import random
 import argparse
 import json
 
-from src.utils import DataUtil, JSONParser
+from src.utils import DataUtils, JSONParser
 from src.openai_utils import extract_openai_result
 import os
 
@@ -213,7 +213,7 @@ Input text: {{claim}}
 """.strip()
 
 if __name__ == "__main__":
-    temp_batch_results = DataUtil.load_data(
+    temp_batch_results = DataUtils.load_data(
         "./openai_batch/batch_results/batch_results_annotate_in_out_entities.jsonl"
     )
     batch_results = {}
@@ -227,7 +227,7 @@ if __name__ == "__main__":
             pass
     print(f"Loaded {len(batch_results)} results")
 
-    data = DataUtil.load_data("./data/processed_factkg/factkg_train.json")
+    data = DataUtils.load_data("./data/processed_factkg/factkg_train.json")
     train_data = []
     for sample in data:
         if sample["id"] not in batch_results:
@@ -253,4 +253,4 @@ if __name__ == "__main__":
     output_folder = "./data/train_specialized_llm"
     os.makedirs(output_folder, exist_ok=True)
     output_file = os.path.join(output_folder, "training_data.jsonl")
-    DataUtil.save_jsonl_from_list(train_data, output_file)
+    DataUtils.save_jsonl_from_list(train_data, output_file)
