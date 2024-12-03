@@ -1,1 +1,2 @@
-git add . && git commit -m "commit and push main" && git push origin main
+# add message variable to commit
+git add . && git commit -m "code chan qua thoi commit di ngu" && git push origin main

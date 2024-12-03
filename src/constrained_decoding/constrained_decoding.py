@@ -6,7 +6,7 @@ import torch
 class Trie:
     """A custom Trie implementation for managing token sequences."""
 
-    def __init__(self, nested_token_ids: List[List[int]], no_subsets: bool = True):
+    def __init__(self, nested_token_ids: List[List[int]], no_subsets: bool = False):
         """
         Initialize a Trie with the given token sequences.
 
@@ -14,12 +14,17 @@ class Trie:
             nested_token_ids: List of token ID sequences to store in the Trie
             no_subsets: If True, raises error if one sequence is a subset of another
         """
-        self.max_height = max(len(seq) for seq in nested_token_ids)
-        self.trie = {}
+        self.max_height = (
+            max(len(seq) for seq in nested_token_ids) if nested_token_ids else 0
+        )
+        self.trie = {
+            "children": {},
+            "is_end": False,
+        }
 
         # Build trie from token sequences
         for token_ids in nested_token_ids:
-            level = self.trie
+            level = self.trie["children"]
             for i, token_id in enumerate(token_ids):
                 if token_id not in level:
                     level[token_id] = {"children": {}, "is_end": False}
@@ -29,27 +34,35 @@ class Trie:
 
         # Validate no subset constraint
         if no_subsets:
-            for token_ids in nested_token_ids:
-                if self._is_subset(token_ids):
+            self._validate_no_subsets(nested_token_ids)
+
+    def _validate_no_subsets(self, nested_token_ids: List[List[int]]):
+        for token_ids in nested_token_ids:
+            node = self.trie["children"]
+            for token in token_ids:
+                if token not in node:
+                    break
+                if node[token]["is_end"] and token != token_ids[-1]:
+                    # Found a shorter sequence that is a prefix of the current sequence
                     raise ValueError(
-                        "Each sequence in nested_token_ids can't be a subset of another sequence, "
-                        f"but found such case in: {nested_token_ids}"
+                        f"Found a sequence that is a subset of another sequence: {token_ids}"
                     )
+                node = node[token]["children"]
 
     def next_tokens(self, current_seq: List[int]) -> List[int]:
         """Get possible next tokens given the current sequence."""
-        node = self.trie
+        node = self.trie["children"]
         # Traverse to current position
         for token in current_seq:
             if token not in node:
-                return []
+                raise ValueError(f"Invalid sequence: {current_seq}")
             node = node[token]["children"]
         # Return possible next tokens
         return list(node.keys())
 
     def reached_leaf(self, current_seq: List[int]) -> bool:
         """Check if current sequence reaches a leaf node."""
-        node = self.trie
+        node = self.trie["children"]
         for i, token in enumerate(current_seq):
             if token not in node:
                 raise ValueError(f"Sequence {current_seq} not in trie")
@@ -58,23 +71,31 @@ class Trie:
             node = node[token]["children"]
         return False
 
-    def _is_subset(self, candidate_seq: List[int]) -> bool:
-        """Check if the given sequence is a subset of any sequence in the trie."""
-        node = self.trie
+    def is_subset(self, candidate_seq: List[int]) -> bool:
+        """Check if the given sequence is a subset (prefix) of any sequence in the trie."""
+        if not candidate_seq:
+            return True
+
+        node = self.trie["children"]
         for token in candidate_seq:
             if token not in node:
                 return False
             node = node[token]["children"]
-        return any(child.get("is_end", False) for child in node.values())
+        # The sequence is a subset if we can reach this point - we don't need
+        # to check node["is_end"] since we're checking for prefixes
+        return True
 
-    def _count_unique_paths(self, node: Dict, path: tuple = ()) -> int:
-        """Count unique paths in the trie."""
-        if not node:  # Empty node
-            return 0
-        count = 1 if node.get("is_end", False) else 0
-        for token, child in node.get("children", {}).items():
-            count += self._count_unique_paths(child, path + (token,))
-        return count
+    def count_unique_paths(self):
+        def _count_unique_paths(node: Dict) -> int:
+            """Count unique paths in the trie."""
+            count = 0
+            if node["is_end"]:
+                count += 1
+            for token, child in node["children"].items():
+                count += _count_unique_paths(child)
+            return count
+
+        return _count_unique_paths(self.trie)
 
 
 def constrained_decoding(
@@ -83,21 +104,6 @@ def constrained_decoding(
     start_sequence: str,
     end_sequence: str,
 ) -> callable:
-    """
-    Create a constrained decoding function for text generation.
-
-    Args:
-        tokenizer: The tokenizer to use for encoding sequences
-        trie: A Trie object containing valid token sequences
-        start_sequence: The sequence marking the start of constrained generation
-        end_sequence: The sequence marking the end of constrained generation
-
-    Returns:
-        A function that implements the constrained decoding logic
-
-    Raises:
-        ValueError: If start_sequence or end_sequence are empty or invalid
-    """
     if not start_sequence or not end_sequence:
         raise ValueError("start_sequence and end_sequence must not be empty")
 
@@ -113,22 +119,22 @@ def constrained_decoding(
     all_tokens = list(range(len(tokenizer)))
 
     def check_list_contain(sequence: List[int], subsequence: List[int]) -> List[int]:
-        """
-        Find all occurrences of subsequence in sequence.
-
-        Args:
-            sequence: The main sequence to search in
-            subsequence: The subsequence to search for
-
-        Returns:
-            List of starting indices where subsequence occurs in sequence
-        """
         indices = []
         if not subsequence:
             return indices
-        for i in range(len(sequence) - len(subsequence) + 1):
-            if sequence[i : i + len(subsequence)] == subsequence:
-                indices.append(i)
+
+        subseq_len = len(subsequence)
+        first_token = subsequence[0]
+
+        i = 0
+        while i <= len(sequence) - subseq_len:
+            if sequence[i] == first_token:
+                if sequence[i : i + subseq_len] == subsequence:
+                    indices.append(i)
+                i += 1
+            else:
+                i += 1
+
         return indices
 
     def constrained_function(batch_id: int, tokens: torch.Tensor) -> List[int]:
@@ -137,10 +143,13 @@ def constrained_decoding(
 
         Args:
             batch_id: The batch index
-            tokens: Current sequence of tokens
+            tokens: Current sequence of tokens (shape: [sequence_length])
 
         Returns:
-            List of allowed next tokens
+            List of allowed next tokens that satisfy the constraints
+
+        Note:
+            Returns all possible tokens when not in entity mode or if an error occurs
         """
         tokens = tokens.tolist()
         all_start_indices = check_list_contain(tokens, start_ids)
