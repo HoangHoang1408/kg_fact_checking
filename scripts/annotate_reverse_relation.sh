@@ -1,2 +1,3 @@
 #!/bin/bash
-poetry run python annotate_revert_relation.py
+export PYTHONPATH="$(pwd)":$PYTHONPATH
+poetry run python workflow/data_annotate/annotate_revert_relation.py
