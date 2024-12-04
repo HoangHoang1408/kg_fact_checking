@@ -2,7 +2,7 @@ from typing import List, Union, Dict
 from transformers import AutoTokenizer
 import torch
 from tqdm.auto import tqdm
-
+import pickle
 
 class Trie:
     """A custom Trie implementation for managing token sequences."""
@@ -97,6 +97,47 @@ class Trie:
             return count
 
         return _count_unique_paths(self.trie)
+
+    @staticmethod
+    def load(filepath: str) -> 'Trie':
+        """
+        Load a Trie object from a file.
+        
+        Args:
+            filepath: Path to the file containing the serialized Trie
+            
+        Returns:
+            Loaded Trie object
+            
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            pickle.UnpicklingError: If there's an error during deserialization
+        """
+        with open(filepath, 'rb') as f:
+            trie_data = pickle.load(f)
+            # Create an empty Trie
+            trie = Trie([])
+            # Update its attributes
+            trie.trie = trie_data['trie']
+            trie.max_height = trie_data['max_height']
+            return trie
+
+    def store(self, filepath: str):
+        """
+        Store the Trie object to a file using pickle serialization.
+        
+        Args:
+            filepath: Path where to save the serialized Trie
+            
+        Raises:
+            IOError: If there's an error writing to the file
+        """
+        trie_data = {
+            'trie': self.trie,
+            'max_height': self.max_height
+        }
+        with open(filepath, 'wb') as f:
+            pickle.dump(trie_data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def constrained_decoding(

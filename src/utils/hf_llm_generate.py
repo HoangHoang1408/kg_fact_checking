@@ -1,4 +1,5 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from typing import List
 
 DEFAULT_GENERATION_CONFIG = {
     "max_new_tokens": 128,
@@ -16,6 +17,7 @@ def llm_generate(
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
     generation_config: dict = DEFAULT_GENERATION_CONFIG,
+    prefix_allowed_tokens_fn: callable = None,
     **kwargs,
 ) -> List[str]:
     """
@@ -38,7 +40,11 @@ def llm_generate(
         "pad_token_id": tokenizer.eos_token_id or tokenizer.pad_token_id,
     }
     outputs = model.generate(
-        **inputs, **generation_config, output_scores=True, return_dict_in_generate=True
+        **inputs,
+        **generation_config,
+        output_scores=True,
+        return_dict_in_generate=True,
+        prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
     )
     sequences = outputs.sequences.cpu()[:, len(inputs["input_ids"][0]) :]
     return tokenizer.batch_decode(sequences, skip_special_tokens=True)

@@ -84,12 +84,11 @@ def main():
     print("Creating Trie from token sequences")
     trie = Trie(token_sequences, no_subsets=False)
 
-    print(f"Saving Trie to {output_path}")
+    print(f"Saving Trie to {args.output_dir}")
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     output_path = os.path.join(args.output_dir, "entity_trie.pkl")
-    with open(output_path, "wb") as f:
-        pickle.dump(trie, f)
+    trie.store(output_path)
 
     print("Done!")
 

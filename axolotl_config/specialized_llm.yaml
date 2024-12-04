@@ -1,4 +1,6 @@
 base_model: /workspace/home/nambkh/HUB_Models/Llama-3.2-3B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
 
 load_in_8bit: false
 load_in_4bit: false
@@ -15,7 +17,7 @@ output_dir: /workspace/home/hoangpv4/kg_fact_checking/models/specialized_llms/18
 
 sequence_len: 512
 sample_packing: true
-pad_to_sequence_len: false
+pad_to_sequence_len: true
 
 wandb_project:
 wandb_entity:
@@ -25,12 +27,12 @@ wandb_log_model:
 
 gradient_accumulation_steps: 8
 micro_batch_size: 4
-num_epochs: 3
+num_epochs: 2
 optimizer: paged_adamw_8bit
 lr_scheduler: cosine
 learning_rate: 2e-5
 
-train_on_inputs: true
+train_on_inputs: false
 group_by_length: false
 bf16: auto
 fp16:
