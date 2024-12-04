@@ -1,6 +1,7 @@
 from typing import List, Union, Dict
 from transformers import AutoTokenizer
 import torch
+from tqdm.auto import tqdm
 
 
 class Trie:
@@ -23,7 +24,7 @@ class Trie:
         }
 
         # Build trie from token sequences
-        for token_ids in nested_token_ids:
+        for token_ids in tqdm(nested_token_ids):
             level = self.trie["children"]
             for i, token_id in enumerate(token_ids):
                 if token_id not in level:

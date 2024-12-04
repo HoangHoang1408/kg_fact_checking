@@ -57,3 +57,8 @@ class DataUtils:
             file_path (str): The path to the JSONL file to be created.
         """
         Dataset.from_list(data).to_json(file_path, force_ascii=False)
+
+    @staticmethod
+    def save_pickle(data, file_path):
+        with open(file_path, "wb") as f:
+            pickle.dump(data, f)
