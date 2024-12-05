@@ -25,7 +25,13 @@ def parse_args():
     parser.add_argument("--early-stopping", type=bool, default=True)
     parser.add_argument("--start-sequence", type=str, default="<entity>")
     parser.add_argument("--end-sequence", type=str, default="</entity>")
-    parser.add_argument("--batch-size", type=int, default=8, help="Batch size for processing multiple samples")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=8,
+        help="Batch size for processing multiple samples",
+    )
+    parser.add_argument("--use-constrained-decoding", type=bool, default=True)
     return parser.parse_args()
 
 
@@ -34,12 +40,6 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model = AutoModelForCausalLM.from_pretrained(args.model_path)
-    trie = Trie.load(
-        os.path.join(args.data_folder_path, "processed_factkg", "entity_trie.pkl")
-    )
-    constrained_function = constrained_decoding(
-        tokenizer, trie, args.start_sequence, args.end_sequence
-    )
     generation_config = {
         "max_new_tokens": args.max_new_tokens,
         "num_beams": args.num_beams,
@@ -47,15 +47,25 @@ if __name__ == "__main__":
         "diversity_penalty": args.diversity_penalty,
         "early_stopping": args.early_stopping,
     }
+
+    constrained_function = None
+    if args.use_constrained_decoding:
+        trie = Trie.load(
+            os.path.join(args.data_folder_path, "processed_factkg", "entity_trie.pkl")
+        )
+        constrained_function = constrained_decoding(
+            tokenizer, trie, args.start_sequence, args.end_sequence
+        )
+
     test_data = DataUtils.load_data(
         os.path.join(args.data_folder_path, "processed_factkg", "factkg_test.json")
     )
-    
+
     # Process data in batches
     for i in tqdm(range(0, len(test_data), args.batch_size)):
-        batch = test_data[i:i + args.batch_size]
+        batch = test_data[i : i + args.batch_size]
         prompts = [PROMPT.replace("{{claim}}", sample["claim"]) for sample in batch]
-        
+
         # Generate for the entire batch
         batch_outputs = batch_llm_generate(
             input_texts=prompts,
@@ -65,7 +75,7 @@ if __name__ == "__main__":
             generation_config=generation_config,
             prefix_allowed_tokens_fn=constrained_function,
         )
-        
+
         # Assign outputs back to the samples
         for sample, output in zip(batch, batch_outputs):
             sample["intermediate_graph"] = output
