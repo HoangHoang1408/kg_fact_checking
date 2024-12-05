@@ -136,6 +136,7 @@ if __name__ == "__main__":
         sample["retrieved_graph"] = graph_shortest_paths(
             kg, sample["claim"], sample["target_entity"], args.max_retrieval_hops
         )
+        
     # Save the updated data with retrieved paths
     output_path = os.path.join(
         args.data_folder_path, "output", "factkg_test_with_retrieved_paths.json"

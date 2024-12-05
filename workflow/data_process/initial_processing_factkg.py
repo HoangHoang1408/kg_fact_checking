@@ -6,6 +6,7 @@ import argparse
 import os
 from uuid import uuid4
 import json
+import random
 
 
 def parse_args():
@@ -56,6 +57,29 @@ def initial_process_data(data_path):
             sample["Evidence"] = temp
 
     return data
+
+
+def partition_data(data, num_sample_per_partition=-1, seed=42):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    partition_types = {"num1", "multi claim", "existence", "multi hop", "negation"}
+    partitions = {k: [] for k in partition_types}
+    for sample in data:
+        valid = False
+        for t in sample["types"]:
+            if t in partition_types:
+                partitions[t].append(sample)
+                valid = True
+        if not valid:
+            raise ValueError("Invalid sample")
+
+    if num_sample_per_partition > 0:
+        for k, v in partitions.items():
+            random.seed(seed)
+            partitions[k] = random.sample(v, num_sample_per_partition)
+
+    return partitions
 
 
 def initial_process_kg(data_path):
@@ -109,20 +133,70 @@ if __name__ == "__main__":
         os.path.join(args.data_folder_path, "factkg", "factkg_test.pickle")
     )
 
-    os.makedirs(os.path.join(args.data_folder_path, "processed_factkg"), exist_ok=True)
+    train_data_partitioned = partition_data(train_data, num_sample_per_partition=-1)
+    dev_data_partitioned = partition_data(dev_data, num_sample_per_partition=-1)
+    test_data_partitioned = partition_data(test_data, num_sample_per_partition=-1)
 
-    DataUtils.save_json_from_list(
-        train_data,
-        os.path.join(args.data_folder_path, "processed_factkg", "factkg_train.json"),
+    train_data_partitioned_1000 = partition_data(
+        train_data, num_sample_per_partition=1000
     )
-    DataUtils.save_json_from_list(
-        dev_data,
-        os.path.join(args.data_folder_path, "processed_factkg", "factkg_dev.json"),
+    dev_data_partitioned_1000 = partition_data(dev_data, num_sample_per_partition=1000)
+    test_data_partitioned_1000 = partition_data(
+        test_data, num_sample_per_partition=1000
     )
-    DataUtils.save_json_from_list(
-        test_data,
-        os.path.join(args.data_folder_path, "processed_factkg", "factkg_test.json"),
+
+    os.makedirs(os.path.join(args.data_folder_path, "processed_factkg"), exist_ok=True)
+    os.makedirs(
+        os.path.join(args.data_folder_path, "processed_factkg", "partitioned_full"),
+        exist_ok=True,
     )
+    os.makedirs(
+        os.path.join(args.data_folder_path, "processed_factkg", "partitioned_1000"),
+        exist_ok=True,
+    )
+
+    for parition, file_name in zip(
+        [train_data_partitioned, dev_data_partitioned, test_data_partitioned],
+        ["train", "dev", "test"],
+    ):
+        DataUtils.save_json_from_list(
+            parition,
+            os.path.join(
+                args.data_folder_path,
+                "processed_factkg",
+                "partitioned_full",
+                f"factkg_{file_name}.json",
+            ),
+        )
+
+    for parition, file_name in zip(
+        [
+            train_data_partitioned_1000,
+            dev_data_partitioned_1000,
+            test_data_partitioned_1000,
+        ],
+        ["train", "dev", "test"],
+    ):
+        DataUtils.save_json_from_list(
+            parition,
+            os.path.join(
+                args.data_folder_path,
+                "processed_factkg",
+                "partitioned_1000",
+                f"factkg_{file_name}.json",
+            ),
+        )
+
+    for data, file_name in zip(
+        [train_data, dev_data, test_data],
+        ["train", "dev", "test"],
+    ):
+        DataUtils.save_json_from_list(
+            data,
+            os.path.join(
+                args.data_folder_path, "processed_factkg", f"factkg_{file_name}.json"
+            ),
+        )
     print("Done initial processing dataset")
 
     kg = initial_process_kg(
@@ -147,4 +221,5 @@ if __name__ == "__main__":
             "dbpedia_2015_undirected_light.pkl",
         ),
     )
+
     print("Done initial processing knowledge graph")
