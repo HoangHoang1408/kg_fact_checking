@@ -33,11 +33,18 @@ def llm_generate(
     Returns:
         List[str]: The generated text as a list of strings.
     """
+    messages = [{"role": "user", "content": input_text}]
+    input_text = tokenizer.apply_chat_template(
+        messages,
+    )
     inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
     generation_config = {
         **generation_config,
         **kwargs,
         "pad_token_id": tokenizer.eos_token_id or tokenizer.pad_token_id,
+        "eos_token_id": [
+            tokenizer.eos_token_id or tokenizer.convert_tokens_to_ids("<|eot_id|>")
+        ],
     }
     outputs = model.generate(
         **inputs,
@@ -48,3 +55,73 @@ def llm_generate(
     )
     sequences = outputs.sequences.cpu()[:, len(inputs["input_ids"][0]) :]
     return tokenizer.batch_decode(sequences, skip_special_tokens=True)
+
+
+def batch_llm_generate(
+    input_texts: List[str],
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    batch_size: int = 8,
+    generation_config: dict = DEFAULT_GENERATION_CONFIG,
+    prefix_allowed_tokens_fn: callable = None,
+    **kwargs,
+) -> List[str]:
+    """
+    Generate text for multiple inputs in batches using a Hugging Face model.
+
+    Args:
+        input_texts (List[str]): List of input texts to generate based on.
+        model (AutoModelForCausalLM): The Hugging Face model to use for generation.
+        tokenizer (AutoTokenizer): The tokenizer to use for encoding the input and decoding the output.
+        batch_size (int, optional): Size of batches to process at once. Defaults to 8.
+        generation_config (dict, optional): A config dictionary for the `generate` method of the model.
+        prefix_allowed_tokens_fn (callable, optional): Function that filters allowed tokens at each step.
+        **kwargs: Additional keyword arguments passed to the `generate` method of the model.
+
+    Returns:
+        List[str]: The generated texts as a list of strings, in the same order as input_texts.
+    """
+    all_outputs = []
+    
+    # Process in batches
+    for i in range(0, len(input_texts), batch_size):
+        batch_texts = input_texts[i:i + batch_size]
+        
+        # Convert texts to chat format and tokenize
+        messages_batch = [{"role": "user", "content": text} for text in batch_texts]
+        formatted_texts = [tokenizer.apply_chat_template(msgs) for msgs in messages_batch]
+        
+        # Tokenize all inputs in the batch
+        inputs = tokenizer(
+            formatted_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+        ).to(model.device)
+        
+        # Set up generation config
+        gen_config = {
+            **generation_config,
+            **kwargs,
+            "pad_token_id": tokenizer.eos_token_id or tokenizer.pad_token_id,
+            "eos_token_id": [
+                tokenizer.eos_token_id or tokenizer.convert_tokens_to_ids("<|eot_id|>")
+            ],
+        }
+        
+        # Generate for the batch
+        outputs = model.generate(
+            **inputs,
+            **gen_config,
+            output_scores=True,
+            return_dict_in_generate=True,
+            prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
+        )
+        
+        # Process outputs
+        input_length = inputs["input_ids"].shape[1]
+        sequences = outputs.sequences.cpu()[:, input_length:]
+        decoded_outputs = tokenizer.batch_decode(sequences, skip_special_tokens=True)
+        all_outputs.extend(decoded_outputs)
+    
+    return all_outputs

@@ -3,6 +3,7 @@ from transformers import AutoTokenizer
 import torch
 from tqdm.auto import tqdm
 import pickle
+import sys
 
 class Trie:
     """A custom Trie implementation for managing token sequences."""
@@ -132,12 +133,20 @@ class Trie:
         Raises:
             IOError: If there's an error writing to the file
         """
-        trie_data = {
-            'trie': self.trie,
-            'max_height': self.max_height
-        }
-        with open(filepath, 'wb') as f:
-            pickle.dump(trie_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        # Increase recursion limit temporarily for pickling
+        old_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(10000)  # Adjust this number if needed
+        
+        try:
+            trie_data = {
+                'trie': self.trie,
+                'max_height': self.max_height
+            }
+            with open(filepath, 'wb') as f:
+                pickle.dump(trie_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        finally:
+            # Restore original recursion limit
+            sys.setrecursionlimit(old_limit)
 
 
 def constrained_decoding(

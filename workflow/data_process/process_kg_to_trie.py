@@ -30,8 +30,19 @@ def tokenize_entities(
     entities: Set[str], tokenizer: PreTrainedTokenizer
 ) -> List[List[int]]:
     """Convert entities to token IDs using batch encoding for improved efficiency."""
-    # Batch encode all entities at once
-    token_sequences = tokenizer(list(entities), add_special_tokens=False).input_ids
+    # Convert set to list for tqdm
+    entities_list = list(entities)
+    print(f"Tokenizing {len(entities_list)} entities...")
+    
+    # Process entities in batches for memory efficiency
+    batch_size = 1000
+    token_sequences = []
+    
+    for i in tqdm(range(0, len(entities_list), batch_size), desc="Tokenizing entities"):
+        batch = entities_list[i:i + batch_size]
+        batch_tokens = tokenizer(batch, add_special_tokens=False).input_ids
+        token_sequences.extend(batch_tokens)
+    
     token_sequences = [
         token_sequence for token_sequence in token_sequences if token_sequence
     ]
@@ -79,7 +90,8 @@ def main():
 
     print("Converting entities to token sequences")
     token_sequences = tokenize_entities(entities, tokenizer)
-    token_sequences = [token_sequence + end_ids for token_sequence in token_sequences]
+    print("Adding end sequence tokens")
+    token_sequences = [token_sequence + end_ids for token_sequence in tqdm(token_sequences, desc="Adding end tokens")]
 
     print("Creating Trie from token sequences")
     trie = Trie(token_sequences, no_subsets=False)
