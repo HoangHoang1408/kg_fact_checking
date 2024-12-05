@@ -1,6 +1,5 @@
-from src.utils import llm_generate, batch_llm_generate
 from src.constrained_decoding import constrained_decoding, Trie
-from src.utils import DataUtils
+from src.utils import batch_llm_generate, DataUtils
 from argparse import ArgumentParser
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm.auto import tqdm
@@ -15,7 +14,10 @@ Input text: {{claim}}
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("--data-folder-path", type=str, required=True)
+    parser.add_argument("--partition-file-path", type=str, required=True)
+    parser.add_argument("--trie-path", type=str, required=True)
+    parser.add_argument("--output-folder-path", type=str, required=True)
+    parser.add_argument("--version", type=str, required=True, default="1.0")
     parser.add_argument("--model-path", type=str, required=True)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--num-beams", type=int, default=1)
@@ -46,24 +48,21 @@ if __name__ == "__main__":
         "num_beam_groups": args.num_beam_groups,
         "diversity_penalty": args.diversity_penalty,
         "early_stopping": args.early_stopping,
+        "num_return_sequences": args.num_return_sequences,
     }
 
     constrained_function = None
     if args.use_constrained_decoding:
-        trie = Trie.load(
-            os.path.join(args.data_folder_path, "processed_factkg", "entity_trie.pkl")
-        )
+        trie = Trie.load(args.trie_path)
         constrained_function = constrained_decoding(
             tokenizer, trie, args.start_sequence, args.end_sequence
         )
 
-    test_data = DataUtils.load_data(
-        os.path.join(args.data_folder_path, "processed_factkg", "factkg_test.json")
-    )
+    data = DataUtils.load_data(args.partition_file_path)
 
     # Process data in batches
-    for i in tqdm(range(0, len(test_data), args.batch_size)):
-        batch = test_data[i : i + args.batch_size]
+    for i in tqdm(range(0, len(data), args.batch_size)):
+        batch = data[i : i + args.batch_size]
         prompts = [PROMPT.replace("{{claim}}", sample["claim"]) for sample in batch]
 
         # Generate for the entire batch
@@ -80,10 +79,8 @@ if __name__ == "__main__":
         for sample, output in zip(batch, batch_outputs):
             sample["intermediate_graph"] = output
 
-    output_path = os.path.join(args.data_folder_path, "output")
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    DataUtils.save_json_from_list(
-        test_data,
-        os.path.join(output_path, "factkg_test_with_intermediate_graph.json"),
-    )
+    if not os.path.exists(args.output_folder_path):
+        os.makedirs(args.output_folder_path)
+    file_name = f"factkg_test_with_intermediate_graph_{args.version}.json"
+    output_path = os.path.join(args.output_folder_path, file_name)
+    DataUtils.save_json_from_list(data, output_path)
