@@ -38,7 +38,7 @@ def initial_process_data(data_path):
         for sample in data:
             for relations in sample["Evidence"].values():
                 for relation in relations:
-                    all_relations.add(relation)
+                    all_relations.update(relation)
 
         relation_map = {
             relation: clean_orignal_relation(relation)
@@ -60,9 +60,6 @@ def initial_process_data(data_path):
 
 
 def partition_data(data, num_sample_per_partition=-1, seed=42):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
     partition_types = {"num1", "multi claim", "existence", "multi hop", "negation"}
     partitions = {k: [] for k in partition_types}
     for sample in data:
@@ -144,6 +141,11 @@ if __name__ == "__main__":
     test_data_partitioned_1000 = partition_data(
         test_data, num_sample_per_partition=1000
     )
+    train_data_partitioned_500 = partition_data(
+        train_data, num_sample_per_partition=500
+    )
+    dev_data_partitioned_500 = partition_data(dev_data, num_sample_per_partition=500)
+    test_data_partitioned_500 = partition_data(test_data, num_sample_per_partition=500)
 
     os.makedirs(os.path.join(args.data_folder_path, "processed_factkg"), exist_ok=True)
     os.makedirs(
@@ -159,7 +161,7 @@ if __name__ == "__main__":
         [train_data_partitioned, dev_data_partitioned, test_data_partitioned],
         ["train", "dev", "test"],
     ):
-        DataUtils.save_json_from_list(
+        DataUtils.save_json(
             parition,
             os.path.join(
                 args.data_folder_path,
@@ -177,7 +179,7 @@ if __name__ == "__main__":
         ],
         ["train", "dev", "test"],
     ):
-        DataUtils.save_json_from_list(
+        DataUtils.save_json(
             parition,
             os.path.join(
                 args.data_folder_path,
@@ -187,11 +189,29 @@ if __name__ == "__main__":
             ),
         )
 
+    for parition, file_name in zip(
+        [
+            train_data_partitioned_500,
+            dev_data_partitioned_500,
+            test_data_partitioned_500,
+        ],
+        ["train", "dev", "test"],
+    ):
+        DataUtils.save_json(
+            parition,
+            os.path.join(
+                args.data_folder_path,
+                "processed_factkg",
+                "partitioned_500",
+                f"factkg_{file_name}.json",
+            ),
+        )
+
     for data, file_name in zip(
         [train_data, dev_data, test_data],
         ["train", "dev", "test"],
     ):
-        DataUtils.save_json_from_list(
+        DataUtils.save_json(
             data,
             os.path.join(
                 args.data_folder_path, "processed_factkg", f"factkg_{file_name}.json"

@@ -83,4 +83,4 @@ if __name__ == "__main__":
         os.makedirs(args.output_folder_path)
     file_name = f"factkg_test_with_intermediate_graph_{args.version}.json"
     output_path = os.path.join(args.output_folder_path, file_name)
-    DataUtils.save_json_from_list(data, output_path)
+    DataUtils.save_json(data, output_path)

@@ -5,6 +5,7 @@ from tqdm.auto import tqdm
 import pickle
 import sys
 
+
 class Trie:
     """A custom Trie implementation for managing token sequences."""
 
@@ -100,93 +101,43 @@ class Trie:
         return _count_unique_paths(self.trie)
 
     @staticmethod
-    def load(filepath: str) -> 'Trie':
-        """
-        Load a Trie object from a file.
-        
-        Args:
-            filepath: Path to the file containing the serialized Trie
-            
-        Returns:
-            Loaded Trie object
-            
-        Raises:
-            FileNotFoundError: If the file doesn't exist
-            pickle.UnpicklingError: If there's an error during deserialization
-        """
-        with open(filepath, 'rb') as f:
+    def load(filepath: str) -> "Trie":
+        with open(filepath, "rb") as f:
             trie_data = pickle.load(f)
-            # Create an empty Trie
             trie = Trie([])
-            # Update its attributes
-            trie.trie = trie_data['trie']
-            trie.max_height = trie_data['max_height']
+            trie.max_height = trie_data["max_height"]
+            trie.trie = trie_data["trie"]
             return trie
 
     def store(self, filepath: str):
-        """
-        Store the Trie object to a file using pickle serialization.
-        
-        Args:
-            filepath: Path where to save the serialized Trie
-            
-        Raises:
-            IOError: If there's an error writing to the file
-        """
-        # Increase recursion limit temporarily for pickling
         old_limit = sys.getrecursionlimit()
-        sys.setrecursionlimit(10000)  # Adjust this number if needed
-        
+        sys.setrecursionlimit(20000)
+
         try:
-            trie_data = {
-                'trie': self.trie,
-                'max_height': self.max_height
-            }
-            with open(filepath, 'wb') as f:
+            trie_data = {"trie": self.trie, "max_height": self.max_height}
+            with open(filepath, "wb") as f:
                 pickle.dump(trie_data, f, protocol=pickle.HIGHEST_PROTOCOL)
         finally:
-            # Restore original recursion limit
             sys.setrecursionlimit(old_limit)
 
 
 def constrained_decoding(
     tokenizer: AutoTokenizer,
     trie: Trie,
-    start_sequence: str,
-    end_sequence: str,
+    start_entity_token: str,
+    end_entity_token: str,
 ) -> callable:
-    if not start_sequence or not end_sequence:
-        raise ValueError("start_sequence and end_sequence must not be empty")
+    if not start_entity_token or not end_entity_token:
+        raise ValueError("start_entity_token and end_entity_token must not be empty")
 
-    # Tokenize sequences
-    start_tokens = tokenizer(start_sequence, return_tensors="pt")
-    end_tokens = tokenizer(end_sequence, return_tensors="pt")
+    # Get token IDs for the entity markers
+    start_id = tokenizer.convert_tokens_to_ids(start_entity_token)
+    end_id = tokenizer.convert_tokens_to_ids(end_entity_token)
 
-    if not start_tokens.input_ids.nelement() or not end_tokens.input_ids.nelement():
-        raise ValueError("Failed to tokenize start_sequence or end_sequence")
+    if start_id == tokenizer.unk_token_id or end_id == tokenizer.unk_token_id:
+        raise ValueError("Failed to convert start_entity_token or end_entity_token to valid token IDs")
 
-    start_ids = start_tokens.input_ids[0].tolist()
-    end_ids = end_tokens.input_ids[0].tolist()
     all_tokens = list(range(len(tokenizer)))
-
-    def check_list_contain(sequence: List[int], subsequence: List[int]) -> List[int]:
-        indices = []
-        if not subsequence:
-            return indices
-
-        subseq_len = len(subsequence)
-        first_token = subsequence[0]
-
-        i = 0
-        while i <= len(sequence) - subseq_len:
-            if sequence[i] == first_token:
-                if sequence[i : i + subseq_len] == subsequence:
-                    indices.append(i)
-                i += 1
-            else:
-                i += 1
-
-        return indices
 
     def constrained_function(batch_id: int, tokens: torch.Tensor) -> List[int]:
         """
@@ -203,23 +154,20 @@ def constrained_decoding(
             Returns all possible tokens when not in entity mode or if an error occurs
         """
         tokens = tokens.tolist()
-        all_start_indices = check_list_contain(tokens, start_ids)
-        all_end_indices = check_list_contain(tokens, end_ids)
-
-        # Handle cases where start or end sequences are not found
-        if not all_start_indices:
+        
+        # Find the last occurrence of start and end tokens
+        try:
+            last_start_idx = len(tokens) - 1 - tokens[::-1].index(start_id) if start_id in tokens else -1
+            last_end_idx = len(tokens) - 1 - tokens[::-1].index(end_id) if end_id in tokens else -1
+        except ValueError:
             return all_tokens
-        if not all_end_indices:
-            all_end_indices = [-1]  # Use -1 to ensure entity_mode is True
 
-        candidate_start_index = all_start_indices[-1]
-        candidate_end_index = all_end_indices[-1]
-
-        entity_mode = candidate_start_index > candidate_end_index
+        # We're in entity mode if we've seen a start token more recently than an end token
+        entity_mode = last_start_idx > last_end_idx
 
         if entity_mode:
             try:
-                current_path = tokens[candidate_start_index:]
+                current_path = tokens[last_start_idx + 1:]
                 next_tokens = trie.next_tokens(current_path)
                 return next_tokens if next_tokens else all_tokens
             except (IndexError, ValueError) as e:

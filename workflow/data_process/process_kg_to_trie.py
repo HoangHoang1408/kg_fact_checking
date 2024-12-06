@@ -33,16 +33,16 @@ def tokenize_entities(
     # Convert set to list for tqdm
     entities_list = list(entities)
     print(f"Tokenizing {len(entities_list)} entities...")
-    
+
     # Process entities in batches for memory efficiency
     batch_size = 1000
     token_sequences = []
-    
+
     for i in tqdm(range(0, len(entities_list), batch_size), desc="Tokenizing entities"):
-        batch = entities_list[i:i + batch_size]
+        batch = entities_list[i : i + batch_size]
         batch_tokens = tokenizer(batch, add_special_tokens=False).input_ids
         token_sequences.extend(batch_tokens)
-    
+
     token_sequences = [
         token_sequence for token_sequence in token_sequences if token_sequence
     ]
@@ -70,10 +70,10 @@ def parse_args():
         help="Output directory to save the Trie",
     )
     parser.add_argument(
-        "--end-sequence",
+        "--end-entity-token",
         type=str,
         default="</entity>",
-        help="End sequence for constrained decoding",
+        help="End entity token for constrained decoding",
     )
     return parser.parse_args()
 
@@ -82,7 +82,14 @@ def main():
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
-    end_ids = tokenizer.encode(args.end_sequence, add_special_tokens=False)
+
+    # Convert end entity token to ID
+    end_token_id = tokenizer.convert_tokens_to_ids(args.end_entity_token)
+    if end_token_id == tokenizer.unk_token_id:
+        raise ValueError(
+            f"End entity token '{args.end_entity_token}' is not in the tokenizer vocabulary"
+        )
+
     kg = DataUtils.load_data(args.kg_path)
 
     entities = extract_entities(kg)
@@ -90,8 +97,11 @@ def main():
 
     print("Converting entities to token sequences")
     token_sequences = tokenize_entities(entities, tokenizer)
-    print("Adding end sequence tokens")
-    token_sequences = [token_sequence + end_ids for token_sequence in tqdm(token_sequences, desc="Adding end tokens")]
+    print("Adding end entity token")
+    token_sequences = [
+        token_sequence + [end_token_id]
+        for token_sequence in tqdm(token_sequences, desc="Adding end token")
+    ]
 
     print("Creating Trie from token sequences")
     trie = Trie(token_sequences, no_subsets=False)

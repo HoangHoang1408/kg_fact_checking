@@ -35,15 +35,18 @@ def llm_generate(
     """
     messages = [{"role": "user", "content": input_text}]
     input_text = tokenizer.apply_chat_template(
-        messages,
+        messages, add_generation_propmpt=True, tokenize=False
     )
-    inputs = tokenizer(input_text, return_tensors="pt").to(model.device)
+    inputs = tokenizer(input_text, return_tensors="pt", add_special_tokens=False).to(
+        model.device
+    )
     generation_config = {
         **generation_config,
         **kwargs,
         "pad_token_id": tokenizer.eos_token_id or tokenizer.pad_token_id,
         "eos_token_id": [
-            tokenizer.eos_token_id or tokenizer.convert_tokens_to_ids("<|eot_id|>")
+            tokenizer.eos_token_id,
+            tokenizer.convert_tokens_to_ids("<|eot_id|>"),
         ],
     }
     outputs = model.generate(
@@ -82,33 +85,40 @@ def batch_llm_generate(
         List[str]: The generated texts as a list of strings, in the same order as input_texts.
     """
     all_outputs = []
-    
+
     # Process in batches
     for i in range(0, len(input_texts), batch_size):
-        batch_texts = input_texts[i:i + batch_size]
-        
+        batch_texts = input_texts[i : i + batch_size]
+
         # Convert texts to chat format and tokenize
         messages_batch = [{"role": "user", "content": text} for text in batch_texts]
-        formatted_texts = [tokenizer.apply_chat_template(msgs) for msgs in messages_batch]
-        
+        formatted_texts = [
+            tokenizer.apply_chat_template(
+                msgs, add_generation_propmpt=True, tokenize=False
+            )
+            for msgs in messages_batch
+        ]
+
         # Tokenize all inputs in the batch
         inputs = tokenizer(
             formatted_texts,
             return_tensors="pt",
             padding=True,
             truncation=True,
+            add_special_tokens=False,
         ).to(model.device)
-        
+
         # Set up generation config
         gen_config = {
             **generation_config,
             **kwargs,
             "pad_token_id": tokenizer.eos_token_id or tokenizer.pad_token_id,
             "eos_token_id": [
-                tokenizer.eos_token_id or tokenizer.convert_tokens_to_ids("<|eot_id|>")
+                tokenizer.eos_token_id,
+                tokenizer.convert_tokens_to_ids("<|eot_id|>"),
             ],
         }
-        
+
         # Generate for the batch
         outputs = model.generate(
             **inputs,
@@ -117,11 +127,11 @@ def batch_llm_generate(
             return_dict_in_generate=True,
             prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
         )
-        
+
         # Process outputs
         input_length = inputs["input_ids"].shape[1]
         sequences = outputs.sequences.cpu()[:, input_length:]
         decoded_outputs = tokenizer.batch_decode(sequences, skip_special_tokens=True)
         all_outputs.extend(decoded_outputs)
-    
+
     return all_outputs

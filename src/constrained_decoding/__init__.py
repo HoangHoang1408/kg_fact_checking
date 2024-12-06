@@ -1,1 +1,1 @@
-from .constrained_decoding import constrained_decoding
+from .constrained_decoding import constrained_decoding, Trie

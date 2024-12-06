@@ -23,7 +23,7 @@ class DataUtils:
         elif file_path.endswith(".json"):
             with open(file_path, "r") as file:
                 data = json.load(file)
-        elif file_path.endswith(".pickle"):
+        elif file_path.endswith(".pickle") or file_path.endswith(".pkl"):
             with open(file_path, "rb") as file:
                 data = pickle.load(file)
         elif file_path.endswith(".txt"):
@@ -36,7 +36,7 @@ class DataUtils:
         return data
 
     @staticmethod
-    def save_json_from_list(data, file_path):
+    def save_json(data, file_path):
         """
         Save a list of dictionaries to a JSON file.
 

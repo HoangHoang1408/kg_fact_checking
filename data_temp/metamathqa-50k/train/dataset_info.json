@@ -1,0 +1,60 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "metamathqa-50k",
+  "dataset_name": "smoltalk",
+  "dataset_size": 37955510,
+  "description": "",
+  "download_checksums": {
+    "hf://datasets/HuggingFaceTB/smoltalk@5a40ecb185e55dd30edf3c24b77e67f6ea0d659b/data/metamathqa-50k/train-00000-of-00001.parquet": {
+      "num_bytes": 15570523,
+      "checksum": null
+    },
+    "hf://datasets/HuggingFaceTB/smoltalk@5a40ecb185e55dd30edf3c24b77e67f6ea0d659b/data/metamathqa-50k/test-00000-of-00001.parquet": {
+      "num_bytes": 808896,
+      "checksum": null
+    }
+  },
+  "download_size": 16379419,
+  "features": {
+    "type": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "messages": [
+      {
+        "content": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "role": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      }
+    ]
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 54334929,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 36077185,
+      "num_examples": 47500,
+      "dataset_name": "smoltalk"
+    },
+    "test": {
+      "name": "test",
+      "num_bytes": 1878325,
+      "num_examples": 2500,
+      "dataset_name": "smoltalk"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

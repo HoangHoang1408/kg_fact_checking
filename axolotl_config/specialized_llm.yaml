@@ -58,3 +58,6 @@ fsdp:
 fsdp_config:
 special_tokens:
   pad_token: <|end_of_text|>
+tokens:
+  - "<entity>"
+  - "</entity>"
