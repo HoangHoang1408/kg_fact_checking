@@ -156,6 +156,10 @@ if __name__ == "__main__":
         os.path.join(args.data_folder_path, "processed_factkg", "partitioned_1000"),
         exist_ok=True,
     )
+    os.makedirs(
+        os.path.join(args.data_folder_path, "processed_factkg", "partitioned_500"),
+        exist_ok=True,
+    )
 
     for parition, file_name in zip(
         [train_data_partitioned, dev_data_partitioned, test_data_partitioned],

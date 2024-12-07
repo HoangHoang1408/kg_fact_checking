@@ -2,4 +2,4 @@
 
 export PYTHONPATH="$(pwd)":$PYTHONPATH
 poetry run python workflow/data_process/initial_processing_factkg.py \
-    --data-folder-path /Users/phamhoang1408/Desktop/graph_checking/data \
+    --data-folder-path /home/namb/hoangpv4/kg_fact_checking/data \
