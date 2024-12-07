@@ -25,89 +25,122 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_most_relevant(encoder, query, candidates, k=1):
-    candidate_embeddings = encoder.encode(candidates)
-    query_embedding = encoder.encode(query)
-    scores = candidate_embeddings @ query_embedding.T
-    return candidates[scores.argsort()[-k:]]
+class RetrievalUtils:
+    @staticmethod
+    def get_most_relevant_with_encoder(encoder, query, candidates, k=1):
+        candidate_embeddings = encoder.encode(candidates)
+        query_embedding = encoder.encode(query)
+        scores = candidate_embeddings @ query_embedding.T
+        return candidates[scores.argsort()[-k:]]
 
 
-def graph_shortest_paths(
-    graph: nx.Graph, source: str, target: str, max_hops: int
-) -> List[List[Tuple[str, str, str]]]:
-    """
-    Find all paths between source and target nodes within max_hops in the graph.
+class GraphUtils:
+    @staticmethod
+    def convert_kg_to_networkx(kg: dict) -> nx.Graph:
+        """
+        Convert knowledge graph dictionary to NetworkX graph.
 
-    Args:
-        graph: NetworkX graph object
-        source: Source node
-        target: Target node
-        max_hops: Maximum number of hops allowed
+        Args:
+            kg: Dictionary with format {entity1: {relation1: [entity2, entity3], ...}, ...}
 
-    Returns:
-        List of paths, where each path is a list of (node1, edge_label, node2) tuples
-    """
-    # Check if both nodes exist in the graph
-    if not graph.has_node(source):
-        return []
-    if not graph.has_node(target):
-        return []
+        Returns:
+            NetworkX undirected graph with nodes as entities and edges with relation labels
+        """
+        G = nx.Graph()
 
-    all_paths = []
+        # Iterate through each source entity and its relations
+        for source_entity, relations in kg.items():
+            # Add the source entity as a node if it doesn't exist
+            if not G.has_node(source_entity):
+                G.add_node(source_entity)
 
-    # Use NetworkX's simple_paths to get all paths within max_hops
-    for path in nx.all_simple_paths(
-        graph, source=source, target=target, cutoff=max_hops
-    ):
-        # Convert path nodes to edge sequence with labels
-        path_with_edges = []
-        for i in range(len(path) - 1):
-            node1, node2 = path[i], path[i + 1]
-            # Get edge data (assuming edge labels are stored in 'label' attribute)
-            edge_data = graph.get_edge_data(node1, node2)
-            edge_label = edge_data.get("label", "")
-            path_with_edges.append((node1, edge_label, node2))
-        all_paths.append(path_with_edges)
+            # Iterate through each relation and its target entities
+            for relation, target_entities in relations.items():
+                # Add edges between source and all target entities with the relation as label
+                for target_entity in target_entities:
+                    if not G.has_node(target_entity):
+                        G.add_node(target_entity)
+                    G.add_edge(source_entity, target_entity, label=relation)
 
-    return all_paths
+        return G
 
+    @staticmethod
+    def graph_shortest_paths(
+        graph: nx.Graph, source: str, target: str, max_hops: int
+    ) -> List[List[Tuple[str, str, str]]]:
+        """
+        Find all paths between source and target nodes within max_hops in the graph.
 
-def convert_kg_to_networkx(kg: dict) -> nx.Graph:
-    """
-    Convert knowledge graph dictionary to NetworkX graph.
+        Args:
+            graph: NetworkX graph object
+            source: Source node
+            target: Target node
+            max_hops: Maximum number of hops allowed
 
-    Args:
-        kg: Dictionary with format {entity1: {relation1: [entity2, entity3], ...}, ...}
+        Returns:
+            List of paths, where each path is a list of (node1, edge_label, node2) tuples
+        """
+        # Check if both nodes exist in the graph
+        if not graph.has_node(source):
+            return []
+        if not graph.has_node(target):
+            return []
 
-    Returns:
-        NetworkX undirected graph with nodes as entities and edges with relation labels
-    """
-    G = nx.Graph()
+        all_paths = []
 
-    # Iterate through each source entity and its relations
-    for source_entity, relations in kg.items():
-        # Add the source entity as a node if it doesn't exist
-        if not G.has_node(source_entity):
-            G.add_node(source_entity)
+        # Use NetworkX's simple_paths to get all paths within max_hops
+        for path in nx.all_simple_paths(
+            graph, source=source, target=target, cutoff=max_hops
+        ):
+            # Convert path nodes to edge sequence with labels
+            path_with_edges = []
+            for i in range(len(path) - 1):
+                node1, node2 = path[i], path[i + 1]
+                # Get edge data (assuming edge labels are stored in 'label' attribute)
+                edge_data = graph.get_edge_data(node1, node2)
+                edge_label = edge_data.get("label", "")
+                path_with_edges.append((node1, edge_label, node2))
+            all_paths.append(path_with_edges)
 
-        # Iterate through each relation and its target entities
-        for relation, target_entities in relations.items():
-            # Add edges between source and all target entities with the relation as label
-            for target_entity in target_entities:
-                if not G.has_node(target_entity):
-                    G.add_node(target_entity)
-                G.add_edge(source_entity, target_entity, label=relation)
+        return all_paths
 
-    return G
+    @staticmethod
+    def retrieve_from_intermediate_graphs(G, encoder, intermediate_graphs):
+        def parse_triplet(triplet):
+            try:
+                head, relation, tail = triplet.strip().split("||")
+                return (head.strip(), relation.strip(), tail.strip())
+            except ValueError:
+                return None
 
-
-def retrieve_algorithm(G, encoder, intermediate_graph):
-    triplets = intermediate_graph.split("\n")
-    triplets = [
-        (triplet.split("||")[0], triplet.split("||")[1], triplet.split("||")[2])
-        for triplet in triplets
-    ]
-    unknown_entity_map = {}
+        joined_intermediate_graph = "\n".join(intermediate_graphs)
+        triplets = joined_intermediate_graph.split("\n")
+        triplets = [
+            parse_triplet(triplet)
+            for triplet in triplets
+            if parse_triplet(triplet) is not None
+        ]
+        graph_dict = {"unknown_entity": {}, "clarified_entity": {}}
+        for triplet in triplets:
+            head, relation, tail = triplet
+            if "unknown" in head:
+                graph_dict.setdefault("unknown_entity", {})[head] = graph_dict[
+                    "unknown_entity"
+                ].get(head, {})
+                graph_dict["unknown_entity"][head].setdefault(tail, []).append(relation)
+            elif "unknown" in tail:
+                graph_dict.setdefault("unknown_entity", {})[tail] = graph_dict[
+                    "unknown_entity"
+                ].get(tail, {})
+                graph_dict["unknown_entity"][tail].setdefault(head, []).append(relation)
+            else:
+                graph_dict.setdefault("clarified_entity", {})[head] = graph_dict[
+                    "clarified_entity"
+                ].get(head, {})
+                graph_dict["clarified_entity"][head].setdefault(tail, []).append(
+                    relation
+                )
+        return graph_dict
 
 
 if __name__ == "__main__":
@@ -136,7 +169,7 @@ if __name__ == "__main__":
         sample["retrieved_graph"] = graph_shortest_paths(
             kg, sample["claim"], sample["target_entity"], args.max_retrieval_hops
         )
-        
+
     # Save the updated data with retrieved paths
     output_path = os.path.join(
         args.data_folder_path, "output", "factkg_test_with_retrieved_paths.json"

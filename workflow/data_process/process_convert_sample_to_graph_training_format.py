@@ -216,6 +216,8 @@ if __name__ == "__main__":
     temp_batch_results = DataUtils.load_data(
         "./openai_batch/batch_results/batch_results_annotate_in_out_entities.jsonl"
     )
+    if temp_batch_results is None:
+        raise ValueError("temp_batch_results is None")
     batch_results = {}
     for result in temp_batch_results:
         try:
@@ -228,6 +230,8 @@ if __name__ == "__main__":
     print(f"Loaded {len(batch_results)} results")
 
     data = DataUtils.load_data("./data/processed_factkg/factkg_train.json")
+    if data is None:
+        raise ValueError("Data is None")
     train_data = []
     for sample in data:
         if sample["id"] not in batch_results:

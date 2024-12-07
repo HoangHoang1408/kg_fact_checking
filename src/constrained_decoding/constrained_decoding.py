@@ -1,5 +1,5 @@
-from typing import List, Union, Dict
-from transformers import AutoTokenizer
+from typing import List, Dict
+from transformers import PreTrainedTokenizer
 import torch
 from tqdm.auto import tqdm
 import pickle
@@ -122,11 +122,11 @@ class Trie:
 
 
 def constrained_decoding(
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
     trie: Trie,
     start_entity_token: str,
     end_entity_token: str,
-) -> callable:
+):
     if not start_entity_token or not end_entity_token:
         raise ValueError("start_entity_token and end_entity_token must not be empty")
 
@@ -135,7 +135,9 @@ def constrained_decoding(
     end_id = tokenizer.convert_tokens_to_ids(end_entity_token)
 
     if start_id == tokenizer.unk_token_id or end_id == tokenizer.unk_token_id:
-        raise ValueError("Failed to convert start_entity_token or end_entity_token to valid token IDs")
+        raise ValueError(
+            "Failed to convert start_entity_token or end_entity_token to valid token IDs"
+        )
 
     all_tokens = list(range(len(tokenizer)))
 
@@ -153,12 +155,19 @@ def constrained_decoding(
         Note:
             Returns all possible tokens when not in entity mode or if an error occurs
         """
-        tokens = tokens.tolist()
-        
+        token_list = tokens.tolist()
         # Find the last occurrence of start and end tokens
         try:
-            last_start_idx = len(tokens) - 1 - tokens[::-1].index(start_id) if start_id in tokens else -1
-            last_end_idx = len(tokens) - 1 - tokens[::-1].index(end_id) if end_id in tokens else -1
+            last_start_idx = (
+                len(token_list) - 1 - token_list[::-1].index(start_id)
+                if start_id in token_list
+                else -1
+            )
+            last_end_idx = (
+                len(token_list) - 1 - token_list[::-1].index(end_id)
+                if end_id in token_list
+                else -1
+            )
         except ValueError:
             return all_tokens
 
@@ -167,7 +176,7 @@ def constrained_decoding(
 
         if entity_mode:
             try:
-                current_path = tokens[last_start_idx + 1:]
+                current_path = token_list[last_start_idx + 1 :]
                 next_tokens = trie.next_tokens(current_path)
                 return next_tokens if next_tokens else all_tokens
             except (IndexError, ValueError) as e:

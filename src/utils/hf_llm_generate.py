@@ -1,4 +1,7 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from transformers import (
+    AutoModelForCausalLM,
+    PreTrainedTokenizer,
+)
 from typing import List
 
 DEFAULT_GENERATION_CONFIG = {
@@ -15,9 +18,9 @@ DEFAULT_GENERATION_CONFIG = {
 def llm_generate(
     input_text: str,
     model: AutoModelForCausalLM,
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
     generation_config: dict = DEFAULT_GENERATION_CONFIG,
-    prefix_allowed_tokens_fn: callable = None,
+    prefix_allowed_tokens_fn=None,
     **kwargs,
 ) -> List[str]:
     """
@@ -63,7 +66,7 @@ def llm_generate(
 def batch_llm_generate(
     input_texts: List[str],
     model: AutoModelForCausalLM,
-    tokenizer: AutoTokenizer,
+    tokenizer: PreTrainedTokenizer,
     batch_size: int = 8,
     generation_config: dict = DEFAULT_GENERATION_CONFIG,
     prefix_allowed_tokens_fn: callable = None,
