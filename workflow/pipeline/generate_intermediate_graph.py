@@ -4,12 +4,7 @@ from argparse import ArgumentParser
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm.auto import tqdm
 import os
-
-PROMPT = """
-Convert the following text into a graph format. The graph can contain unknown entities that do not exist within input text but support the input text.
-
-Input text: {{claim}}
-""".strip()
+from src.prompts import GEN_PSEUDO_GRAPH_PROMPT
 
 
 def parse_args():
@@ -25,12 +20,17 @@ def parse_args():
     parser.add_argument("--num-beam-groups", type=int, default=1)
     parser.add_argument("--diversity-penalty", type=float, default=1.0)
     parser.add_argument("--early-stopping", type=bool, default=True)
-    parser.add_argument("--start-sequence", type=str, default="<entity>")
-    parser.add_argument("--end-sequence", type=str, default="</entity>")
+    parser.add_argument("--start-token", type=str, default="<entity>")
+    parser.add_argument("--end-token", type=str, default="</entity>")
+    parser.add_argument(
+        "--partition",
+        type=str,
+        choices=["existence", "num1", "multi claim", "multi hop", "negation"],
+    )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=8,
+        default=1,
         help="Batch size for processing multiple samples",
     )
     parser.add_argument("--use-constrained-decoding", type=bool, default=True)
@@ -55,15 +55,18 @@ if __name__ == "__main__":
     if args.use_constrained_decoding:
         trie = Trie.load(args.trie_path)
         constrained_function = constrained_decoding(
-            tokenizer, trie, args.start_sequence, args.end_sequence
+            tokenizer, trie, args.start_token, args.end_token
         )
 
-    data = DataUtils.load_data(args.partition_file_path)
+    data = DataUtils.load_data(args.partition_file_path)[args.partition]
 
     # Process data in batches
     for i in tqdm(range(0, len(data), args.batch_size)):
         batch = data[i : i + args.batch_size]
-        prompts = [PROMPT.replace("{{claim}}", sample["claim"]) for sample in batch]
+        prompts = [
+            GEN_PSEUDO_GRAPH_PROMPT.replace("{{claim}}", sample["claim"])
+            for sample in batch
+        ]
 
         # Generate for the entire batch
         batch_outputs = batch_llm_generate(
@@ -74,13 +77,14 @@ if __name__ == "__main__":
             generation_config=generation_config,
             prefix_allowed_tokens_fn=constrained_function,
         )
-
         # Assign outputs back to the samples
         for sample, output in zip(batch, batch_outputs):
             sample["intermediate_graph"] = output
 
-    if not os.path.exists(args.output_folder_path):
-        os.makedirs(args.output_folder_path)
-    file_name = f"factkg_test_with_intermediate_graph_{args.version}.json"
-    output_path = os.path.join(args.output_folder_path, file_name)
-    DataUtils.save_json(data, output_path)
+    save_folder = os.path.join(args.output_folder_path, args.version)
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+    save_results = {"settings": vars(args), "data": data}
+    file_name = f"factkg_test_with_intermediate_graph_{args.partition}.json"
+    output_path = os.path.join(save_folder, file_name)
+    DataUtils.save_json(save_results, output_path)

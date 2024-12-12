@@ -166,3 +166,4 @@ data/*
 openai_batch_jobs
 openai_batch
 tests
+.windsurfrules
