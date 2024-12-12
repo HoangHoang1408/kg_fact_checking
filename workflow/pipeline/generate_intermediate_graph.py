@@ -4,7 +4,16 @@ from argparse import ArgumentParser
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm.auto import tqdm
 import os
+import logging
 from src.prompts import GEN_PSEUDO_GRAPH_PROMPT
+
+# Set up logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 def parse_args():
@@ -39,7 +48,9 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    logger.info(f"Starting graph generation for partition: {args.partition}")
 
+    logger.info("Loading tokenizer and model...")
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model = AutoModelForCausalLM.from_pretrained(args.model_path)
     generation_config = {
@@ -53,16 +64,20 @@ if __name__ == "__main__":
 
     constrained_function = None
     if args.use_constrained_decoding:
+        logger.info("Setting up constrained decoding with trie...")
         trie = Trie.load(args.trie_path)
         constrained_function = constrained_decoding(
             tokenizer, trie, args.start_token, args.end_token
         )
 
+    logger.info(f"Loading data from {args.partition_file_path}")
     data = DataUtils.load_data(args.partition_file_path)[args.partition]
+    logger.info(f"Processing {len(data)} samples in batches of {args.batch_size}")
 
     # Process data in batches
     for i in tqdm(range(0, len(data), args.batch_size)):
         batch = data[i : i + args.batch_size]
+        logger.debug(f"Processing batch {i//args.batch_size + 1}")
         prompts = [
             GEN_PSEUDO_GRAPH_PROMPT.replace("{{claim}}", sample["claim"])
             for sample in batch
@@ -84,7 +99,11 @@ if __name__ == "__main__":
     save_folder = os.path.join(args.output_folder_path, args.version)
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
+        logger.info(f"Created output directory: {save_folder}")
+    
     save_results = {"settings": vars(args), "data": data}
     file_name = f"factkg_test_with_intermediate_graph_{args.partition}.json"
     output_path = os.path.join(save_folder, file_name)
+    logger.info(f"Saving results to {output_path}")
     DataUtils.save_json(save_results, output_path)
+    logger.info("Processing completed successfully!")

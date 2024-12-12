@@ -34,6 +34,8 @@ class DataUtils:
         if data is None:
             raise ValueError(f"File {file_path} is not a valid format.")
 
+        return data
+
     @staticmethod
     def save_json(data, file_path):
         """

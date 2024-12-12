@@ -65,7 +65,7 @@ class GraphUtils:
         return G
 
     @staticmethod
-    def graph_shortest_paths(
+    def paths_between_two_entities(
         graph: nx.Graph, source: str, target: str, max_hops: int
     ) -> List[List[Tuple[str, str, str]]]:
         """
@@ -105,42 +105,96 @@ class GraphUtils:
         return all_paths
 
     @staticmethod
-    def retrieve_from_intermediate_graphs(G, encoder, intermediate_graphs):
-        def parse_triplet(triplet):
-            try:
-                head, relation, tail = triplet.strip().split("||")
-                return (head.strip(), relation.strip(), tail.strip())
-            except ValueError:
-                return None
+    def common_entities_of_list_entities(G, list_entities, max_hops=1):
+        def k_hop_neighbors(G, node, k):
+            return set(nx.single_source_shortest_path(G, node, k).keys())
 
-        joined_intermediate_graph = "\n".join(intermediate_graphs)
-        triplets = joined_intermediate_graph.split("\n")
-        triplets = [
-            parse_triplet(triplet)
-            for triplet in triplets
-            if parse_triplet(triplet) is not None
-        ]
-        graph_dict = {"unknown_entity": {}, "clarified_entity": {}}
-        for triplet in triplets:
-            head, relation, tail = triplet
-            if "unknown" in head:
-                graph_dict.setdefault("unknown_entity", {})[head] = graph_dict[
-                    "unknown_entity"
-                ].get(head, {})
-                graph_dict["unknown_entity"][head].setdefault(tail, []).append(relation)
-            elif "unknown" in tail:
-                graph_dict.setdefault("unknown_entity", {})[tail] = graph_dict[
-                    "unknown_entity"
-                ].get(tail, {})
-                graph_dict["unknown_entity"][tail].setdefault(head, []).append(relation)
-            else:
-                graph_dict.setdefault("clarified_entity", {})[head] = graph_dict[
-                    "clarified_entity"
-                ].get(head, {})
-                graph_dict["clarified_entity"][head].setdefault(tail, []).append(
-                    relation
+        neighbors = set()
+        for entity in list_entities:
+            neighbors.update(k_hop_neighbors(G, entity, max_hops))
+        return neighbors
+
+    @staticmethod
+    def retrieve_from_intermediate_graphs(G, encoder, intermediate_graphs):
+        print("\n=== Starting retrieval from intermediate graphs ===")
+        def retrieve_from_one_intermediate_graph(
+            intermediate_graph, max_hops=1, top_k_triplets=1
+        ):
+            print(f"\nProcessing intermediate graph with max_hops={max_hops}, top_k_triplets={top_k_triplets}")
+            def parse_triplet(triplet):
+                try:
+                    head, relation, tail = triplet.strip().split("||")
+                    return (head.strip(), relation.strip(), tail.strip())
+                except ValueError:
+                    print(f"Failed to parse triplet: {triplet}")
+                    return None
+
+            def retrieve_relevant_triplets(triplet, max_hops=1, top_k_triplets=1):
+                head, relation, tail = triplet
+                print(f"\nFinding paths between {head} and {tail} (max_hops={max_hops})")
+                candidates = GraphUtils.paths_between_two_entities(
+                    G, head, tail, max_hops=max_hops
                 )
-        return graph_dict
+                print(f"Found {len(candidates)} candidate paths")
+                candidate_texts = [
+                    f"{cand[0]} {cand[1]} {cand[2]}" for cand in candidates
+                ]
+                if len(candidate_texts) == 0:
+                    print("No candidate paths found")
+                    return None
+                print("Getting most relevant paths using encoder...")
+                results = RetrievalUtils.get_most_relevant_with_encoder(
+                    encoder,
+                    f"{head} {relation} {tail}",
+                    candidate_texts,
+                    k=top_k_triplets,
+                )
+                print(f"Selected top {top_k_triplets} relevant paths")
+                return results
+
+            print("\nParsing triplets from intermediate graph...")
+            triplets = intermediate_graph.split("\n")
+            triplets = [
+                parse_triplet(triplet)
+                for triplet in triplets
+                if parse_triplet(triplet) is not None
+            ]
+            print(f"Successfully parsed {len(triplets)} triplets")
+            
+            retrieval_state = {
+                "clarified_triplets": [],
+                "unknown_triplets": [],
+                "unknown_variables": {},
+            }
+            
+            print("\nClassifying triplets...")
+            for triplet in triplets:
+                head, relation, tail = triplet
+                if "unknown" in head or "unknown" in tail:
+                    print(f"Found unknown triplet: {head} || {relation} || {tail}")
+                    retrieval_state["unknown_triplets"].append(triplet)
+                else:
+                    print(f"Found clarified triplet: {head} || {relation} || {tail}")
+                    retrieval_state["clarified_triplets"].append(
+                        {
+                            "triplet": triplet,
+                        }
+                    )
+
+            print(f"\nProcessing {len(retrieval_state['clarified_triplets'])} clarified triplets...")
+            for triplet in retrieval_state["clarified_triplets"]:
+                print(f"\nRetrieving relevant triplets for: {' || '.join(triplet['triplet'])}")
+                triplet["relevant_triplets"] = retrieve_relevant_triplets(
+                    triplet["triplet"],
+                    max_hops=max_hops,
+                    top_k_triplets=top_k_triplets,
+                )
+                if triplet["relevant_triplets"]:
+                    print("Found relevant triplets:", triplet["relevant_triplets"])
+                else:
+                    print("No relevant triplets found")
+
+            # step 1: find all revelant triplets for clarified triplets
 
 
 if __name__ == "__main__":
@@ -157,7 +211,7 @@ if __name__ == "__main__":
             ),
         )
     )
-    kg = convert_kg_to_networkx(kg)
+    kg = GraphUtils.convert_kg_to_networkx(kg)
 
     data = DataUtils.load_data(
         os.path.join(
@@ -166,7 +220,7 @@ if __name__ == "__main__":
     )
 
     for sample in tqdm(data):
-        sample["retrieved_graph"] = graph_shortest_paths(
+        sample["retrieved_graph"] = GraphUtils.paths_between_two_entities(
             kg, sample["claim"], sample["target_entity"], args.max_retrieval_hops
         )
 
